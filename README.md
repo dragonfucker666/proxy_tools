@@ -1,54 +1,21 @@
 # Proxy Tools
 
-is an architecture (and an example set of programs) intended to help with building proxying programs collectively
+is a bunch of programs and a shared protocol to create modular proxies, like [xray-core](https://github.com/XTLS/Xray-core/) but more customizable and decoupled, much easier to understand and use. You can write proxy tools yourself and mix them with tools made by other people to create pipelines you need
 
-## Proxy Tools protocol
+Every subdirectory in here is a proxy tool. Build them if you need them. You just need the executables
 
-Every Proxy Tool is just a binary that can accept any of these flags on the command line, which are guaranteed to go before positional arguments:
+## Protocol
 
-* `--output ./output_socket_path` - a path to the output Unix file socket
-* `--input ./input_socket_path` - a path to the input Unix file socket
+Every "tool" is just an executable file. If you want to be able to tie your tools with other tools, you can make your tools accept these flagged arguments (guaranteed to come before other arguments):
 
-To be combinable, programs are expected to listen for connections on the input socket and make connections to the output socket. Usually 1:1, although some programs may have more input connections than output connections, or more output connections than input connections (for example, when multiplexing or demultiplexing connections)
+* `--input ./input_socket_path` - Unix file socket the program needs to create and listen for connections from
+* `--output ./output_socket_path` - Unix file socket the program needs to make connections into and write output data into those connections
 
-You don't have to check for the output socket's existence, or whether the input socket file exists; you may if you want to, but that's not important. Wrapper programs usually take care of deleting the input socket and making sure the output socket exists before running the program
+Tools can be tied together using the "chain" tool
 
-Programs should create their socket input files at startup if an input is required
+## Example configurations
 
-It is not necessary but recommended to delete the input socket on exit (to not create clutter)
-
-## Problem Proxy Tools solves
-
-Proxy combines like [xray-core](https://github.com/XTLS/Xray-core/) are monolithic, and their configurations are very interconnected, making them hard to understand and extend
-
-Proxy Tools are built around the idea that every stage in the proxying process can be handled by a separate program
-
-## Disadvantages over proxy combines
-
-* Slightly lower performance
-
-## Advantages over proxy combines
-
-* Easy to extend with own modules
-* Easy to understand configuration
-* Uses more OS-native technologies, so requires less prerequisite knowledge
-* Easier to mix and match different modules and test them in isolation
-
-## How to use this repo
-
-Every subdirectory in here is its own tool to be combined, except for the "chain" tool: it is intended to tie together other tools, it provides simple socket file management as well
-
-"chain" receives the subprogram separator as its first argument, and then the programs to tie together:
-
-```
-chain + program_that_listens arg1 arg2 + ./middle_program arg1 arg2 --key value + program_that_sends --flag
-```
-
-"chain" prepends `--input` and `--output` arguments when calling subprograms, and only calls subprograms when their output is ready to use and the input was deleted
-
-### Example configurations
-
-#### "Graceful Xi"
+### "Graceful Xi"
 
 Simple socket-to-socket TCP transport based mostly on well-established web technologies. Avoids TLS-in-TLS detection, simultaneous connection limits, unusual fingerprint detection and active probing. Server connections are encrypted
 
