@@ -1,17 +1,15 @@
 # Proxy Tools
 
-is a bunch of programs and a shared protocol to create modular proxies, like [xray-core](https://github.com/XTLS/Xray-core/) but more customizable and decoupled, much easier to understand and use. You can write proxy tools yourself and mix them with tools made by other people to create pipelines you need
+are small proxy programs to be combined together into complete proxy programs that fit your needs. You can create your own tools and combine them with tools of others
 
-Every subdirectory in here is a proxy tool. Build them if you need them. You just need the executables
+~~This repository could have been released earlier, but instead of making it, I was spending time swimming under a "no swimming" sign~~
 
-## Protocol
+## Conventions
 
-Every "tool" is just an executable file. If you want to be able to tie your tools with other tools, you can make your tools accept these flagged arguments (guaranteed to come before other arguments):
+* If your program accepts new connections from other tools, make it accept them on a Unix socket with the path taken from "INPUT" environment variable
+* If your program makes its own connections to other tools, make it do them into a Unix socket with the path taken from "OUTPUT" environment variable
 
-* `--input ./input_socket_path` - Unix file socket the program needs to create and listen for connections from
-* `--output ./output_socket_path` - Unix file socket the program needs to make connections into and write output data into those connections
-
-Tools can be tied together using the "chain" tool
+Break big ideas into many small tools if possible
 
 ## Example configurations
 
@@ -22,11 +20,17 @@ Simple socket-to-socket TCP transport based mostly on well-established web techn
 Server (under a TLS terminator and http/2 demultiplexer reverse proxy such as NGINX):
 
 ```
-chain + listen_tcp --host 127.0.0.1 --port "$PORT_THE_REVERSE_PROXY_OUTPUTS_TO" + cleaner + send_tcp --host 127.0.0.1 --port "$DESTINATION_PORT"
+chain + listen_tcp ipv4:127.0.0.1 "$PORT_THE_REVERSE_PROXY_OUTPUTS_TO" + unwrap_http + cleaner + send_tcp --host 127.0.0.1 --port "$DESTINATION_PORT"
+```
+
+or
+
+```
+chain + env INPUT=./reverse_proxy_socket_path unwrap_http + env OUTPUT=./next_program_socket_path cleaner
 ```
 
 Client (raw, listens on a socket):
 
 ```
-chain + listen_tcp --host 127.0.0.1 --port "$LOCAL_PORT_FOR_INCOMING_CONNECTIONS" + trasher + http2mux --host example.com --path /secret-path-choose-yourself + utls --fingerprint firefox-latest + send_tcp --host example.com --port 443
+chain + listen_tcp ipv4:127.0.0.1 "$LOCAL_PORT_FOR_INCOMING_CONNECTIONS" + trasher + mux_http2 --scheme https --authority example.com --path /secret-path-choose-yourself + utls --sni example.com Firefox_Auto + send_tcp domain:example.com 443
 ```
