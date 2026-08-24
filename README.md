@@ -23,7 +23,7 @@ Every combination is ran from a directory filled with tools, with a subdirectory
 
 ### Once
 
-* Execute `./build_all.sh`
+* Execute `./build_all.sh` (you'd need to install `go` (Golang's source code manager))
 * Add your own tools to `build/`
 
 ### Every time
