@@ -6,10 +6,31 @@ are small proxy programs to be combined together into complete proxy programs th
 
 ## Conventions
 
+### Programming
+
 * If your program accepts new connections from other tools, make it accept them on a Unix socket with the path taken from "INPUT" environment variable
 * If your program makes its own connections to other tools, make it do them into a Unix socket with the path taken from "OUTPUT" environment variable
 
 Break big ideas into many small tools if possible
+
+Accept environment variables for cooperation with other programs, and command line arguments for independent parameters
+
+### Running
+
+Every combination is ran from a directory filled with tools, with a subdirectory for socket storage for each parallel run (so they won't collide)
+
+## Usage
+
+### Once
+
+* Execute `./build_all.sh`
+* Add your own tools to `build/`
+
+### Every time
+
+* Go into `build/`
+* Run your tools
+* If you use the "chain" tool, don't forget to specify a `--storage` directory for all the sockets of the run
 
 ## Example configurations
 
@@ -20,17 +41,17 @@ Simple socket-to-socket TCP transport based mostly on well-established web techn
 Server (under a TLS terminator and http/2 demultiplexer reverse proxy such as NGINX):
 
 ```
-chain + listen_tcp ipv4:127.0.0.1 "$PORT_THE_REVERSE_PROXY_OUTPUTS_TO" + unwrap_http + cleaner + send_tcp --host 127.0.0.1 --port "$DESTINATION_PORT"
+./chain --storage graceful_xi + ./listen_tcp ipv4:127.0.0.1 "$PORT_THE_REVERSE_PROXY_OUTPUTS_TO" + ./unwrap_http + ./cleaner + ./send_tcp --host 127.0.0.1 --port "$DESTINATION_PORT"
 ```
 
 or
 
 ```
-chain + env INPUT=./reverse_proxy_socket_path unwrap_http + env OUTPUT=./next_program_socket_path cleaner
+./chain --storage graceful_xi + env INPUT=./reverse_proxy_socket_path ./unwrap_http + env OUTPUT=./next_program_socket_path ./cleaner
 ```
 
 Client (raw, listens on a socket):
 
 ```
-chain + listen_tcp ipv4:127.0.0.1 "$LOCAL_PORT_FOR_INCOMING_CONNECTIONS" + trasher + mux_http2 --scheme https --authority example.com --path /secret-path-choose-yourself + utls --sni example.com Firefox_Auto + send_tcp domain:example.com 443
+./chain --storage graceful_xi + ./listen_tcp ipv4:127.0.0.1 "$LOCAL_PORT_FOR_INCOMING_CONNECTIONS" + ./trasher + ./mux_http2 --scheme https --authority example.com --path /secret-path-choose-yourself + ./utls --sni example.com Firefox_Auto + ./send_tcp domain:example.com 443
 ```
