@@ -9,27 +9,26 @@ import (
 	"os/exec"
 	"path"
 	"strings"
-	"sync"
 	"time"
 )
 
 // util
-func dieIfErr(e error) {
+func dieIfErr(e error, reason string) {
 	if e != nil {
-		log.Fatalln(e)
+		log.Fatalln(reason + ": " + e.Error())
 	}
 }
 
 // util
 func splitArray(array []string, separator string) [][]string {
 	shouldMakeNewGroup := true
-	groups := make([][]string, 0)
+	groups := [][]string{}
 	for _, item := range array {
 		if item == separator {
 			shouldMakeNewGroup = true
 		} else {
 			if shouldMakeNewGroup {
-				groups = append(groups, make([]string, 0))
+				groups = append(groups, []string{})
 				shouldMakeNewGroup = false
 			}
 			groups[len(groups) - 1] = append(groups[len(groups) - 1], item)
@@ -52,16 +51,17 @@ func getArgs() (string, [][]string) {
 func prepare(socketStorageDir string) {
 	os.MkdirAll(socketStorageDir, 0755)
 	entries, err := os.ReadDir(socketStorageDir)
-	dieIfErr(err)
+	dieIfErr(err, "couldn't read socket storage dir")
 	for _, entry := range entries {
 		if strings.HasSuffix(entry.Name(), ".socket") {
-			dieIfErr(os.Remove(path.Join(socketStorageDir, entry.Name())))
+			socketPath := path.Join(socketStorageDir, entry.Name())
+			dieIfErr(os.Remove(socketPath), fmt.Sprint("couldn't remove socket %v", socketPath))
 		}
 	}
 }
 
 func run(socketStorageDir string, subprograms [][]string) {
-	var wg sync.WaitGroup
+	var exitedSubprogramNumbers chan int
 	for n := len(subprograms); n > 0; n-- {
 		subprogram := subprograms[n - 1]
 		cmd := exec.Command(subprogram[0], subprogram[1:]...)
@@ -75,10 +75,10 @@ func run(socketStorageDir string, subprograms [][]string) {
 			cmd.Env = append(cmd.Env, "INPUT=" + input)
 		}
 		stdoutPipe, err := cmd.StdoutPipe()
-		dieIfErr(err)
+		dieIfErr(err, fmt.Sprintf("couldn't get stdout pipe for subprogram %v", n))
 		stderrPipe, err := cmd.StderrPipe()
-		dieIfErr(err)
-		dieIfErr(cmd.Start())
+		dieIfErr(err, fmt.Sprintf("couldn't get stderr pipe for subprogram %v", n))
+		dieIfErr(cmd.Start(), fmt.Sprintf("couldn't start subprogram %v", n))
 		copyWithPrefix := func(destination io.Writer, source io.Reader) {
 			scanner := bufio.NewScanner(source)
 			for scanner.Scan() {
@@ -95,13 +95,12 @@ func run(socketStorageDir string, subprograms [][]string) {
 				time.Sleep(time.Millisecond * 50)
 			}
 		}
-		wg.Add(1)
 		go func () {
-			dieIfErr(cmd.Wait())
-			wg.Done()
+			cmd.Wait()
+			exitedSubprogramNumbers <- n
 		}()
 	}
-	wg.Wait()
+	log.Fatalln("subprogram", <- exitedSubprogramNumbers, "exited")
 }
 
 func main() {
