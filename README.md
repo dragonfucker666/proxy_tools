@@ -41,7 +41,7 @@ Simple socket-to-socket TCP transport based mostly on well-established web techn
 Server (under a TLS terminator and http/2 demultiplexer reverse proxy such as NGINX):
 
 ```
-./chain --storage graceful_xi + ./listen_tcp ipv4:127.0.0.1 "$PORT_THE_REVERSE_PROXY_OUTPUTS_TO" + ./unwrap_http + ./cleaner + ./send_tcp --host 127.0.0.1 --port "$DESTINATION_PORT"
+./chain --storage graceful_xi + ./listen_tcp 127.0.0.1 "$PORT_THE_REVERSE_PROXY_OUTPUTS_TO" + ./unwrap_http + ./cleaner + ./send_tcp 127.0.0.1 "$DESTINATION_PORT"
 ```
 
 or
@@ -53,5 +53,5 @@ or
 Client (raw, listens on a socket):
 
 ```
-./chain --storage graceful_xi + ./listen_tcp ipv4:127.0.0.1 "$LOCAL_PORT_FOR_INCOMING_CONNECTIONS" + ./trasher + ./mux_http2 --scheme https --authority example.com --path /secret-path-choose-yourself + ./utls --sni example.com Firefox_Auto + ./send_tcp domain:example.com 443
+./chain --storage graceful_xi + ./listen_tcp 127.0.0.1 "$LOCAL_PORT_FOR_INCOMING_CONNECTIONS" + ./trasher + ./mux_http2 --scheme https --authority example.com --path /secret-path-choose-yourself + ./utls --sni example.com --fingerprint Firefox_Auto + ./send_tcp example.com 443
 ```
