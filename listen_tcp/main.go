@@ -1,66 +1,57 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"io"
 	"net"
 	"os"
-	"strings"
+	"flag"
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: listen-tcp <host> <port>")
-		os.Exit(1)
+	ip := flag.String("ip", "any", "version of IP protocol to use")
+	flag.Parse()
+
+	positionals := flag.Args()
+
+	if len(positionals) < 2 {
+		log.Fatalln("Usage: listen-tcp <host> <port>")
 	}
 
-	hostArg := os.Args[1]
-	port := os.Args[2]
-
-	network, host, ok := parseHost(hostArg)
-	if !ok {
-		fmt.Println("Host must start with domain:, ipv4:, or ipv6:")
-		os.Exit(1)
-	}
+	host := positionals[0]
+	port := positionals[1]
 
 	socketPath := os.Getenv("OUTPUT")
 	if socketPath == "" {
-		fmt.Println("Please set OUTPUT to a socket path")
-		os.Exit(1)
+		log.Fatalln("Please set OUTPUT env var to a socket path")
 	}
 
-	address := net.JoinHostPort(host, port)
-	listener, err := net.Listen(network, address)
+	network, ok := map[string]string {
+		"any": "tcp",
+		"v4": "tcp4",
+		"v6": "tcp6",
+	}[*ip];
+	if !ok {
+		log.Fatalln("Incorrect IP version: expected \"v4\", \"v6\" or \"any\", got", *ip)
+	}
+
+	listener, err := net.Listen(network, net.JoinHostPort(host, port))
 	if err != nil {
-		fmt.Println("Cannot listen:", err)
-		os.Exit(1)
+		log.Fatalln("Cannot listen:", err)
 	}
 	defer listener.Close()
 
-	fmt.Println("Listening on", address)
-	fmt.Println("Sending connections to", socketPath)
+	log.Println("Listening on", host, network)
+	log.Println("Sending connections to", socketPath)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Accept error:", err)
+			log.Println("Accept error:", err)
 			continue
 		}
 		go handleConnection(conn, socketPath)
 	}
-}
-
-func parseHost(hostArg string) (network string, host string, ok bool) {
-	if strings.HasPrefix(hostArg, "domain:") {
-		return "tcp", strings.TrimPrefix(hostArg, "domain:"), true
-	}
-	if strings.HasPrefix(hostArg, "ipv4:") {
-		return "tcp4", strings.TrimPrefix(hostArg, "ipv4:"), true
-	}
-	if strings.HasPrefix(hostArg, "ipv6:") {
-		return "tcp6", strings.TrimPrefix(hostArg, "ipv6:"), true
-	}
-	return "", "", false
 }
 
 func handleConnection(clientConn net.Conn, socketPath string) {
@@ -68,7 +59,7 @@ func handleConnection(clientConn net.Conn, socketPath string) {
 
 	socketConn, err := net.Dial("unix", socketPath)
 	if err != nil {
-		fmt.Println("Cannot connect to socket:", err)
+		log.Println("Could not connect to socket:", err)
 		return
 	}
 	defer socketConn.Close()
