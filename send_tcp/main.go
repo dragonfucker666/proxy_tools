@@ -1,82 +1,63 @@
 package main
 
 import (
+	"log"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"strings"
+	"flag"
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: send-tcp <host> <port>")
-		os.Exit(1)
+	ipv := flag.String("ipv", "any", "version of IP protocol to use")
+	flag.Parse()
+
+	positionals := flag.Args()
+
+	if len(positionals) < 2 {
+		log.Fatalln("Usage: ./send_tcp <host> <port>")
 	}
 
-	hostArg := os.Args[1]
-	port := os.Args[2]
-	host := stripHostPrefix(hostArg)
+	host := positionals[0]
+	port := positionals[1]
 
 	socketPath := os.Getenv("INPUT")
 	if socketPath == "" {
-		fmt.Println("Error: please set the INPUT environment variable to a socket path")
-		os.Exit(1)
+		log.Fatalln("Please set INPUT env var to a socket path")
 	}
 
-	os.Remove(socketPath)
+	network, ok := map[string]string {
+		"any": "tcp",
+		"4": "tcp4",
+		"6": "tcp6",
+	}[*ipv];
+	if !ok {
+		log.Fatalln("Incorrect IP version: expected \"4\", \"6\" or \"any\", got", *ipv)
+	}
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
-		fmt.Println("Error: could not listen on socket:", err)
-		os.Exit(1)
+		log.Fatalln("Cannot listen:", err)
 	}
 	defer listener.Close()
 
-	fmt.Println("Listening on", socketPath)
-	fmt.Println("Sending all connections to", net.JoinHostPort(host, port))
-
 	for {
-		conn, err := listener.Accept()
+		client, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection:", err)
+			log.Println("Accept error:", err)
 			continue
 		}
-		go handleConnection(conn, host, port)
+		go func() {
+			defer client.Close()
+			server, err := net.Dial(network, net.JoinHostPort(host, port))
+			if err != nil {
+				log.Println("Could not connect to server:", err)
+			}
+			defer server.Close()
+			go io.Copy(server, client)
+			io.Copy(client, server)
+		}()
 	}
-}
-
-func stripHostPrefix(hostArg string) string {
-	prefixes := []string{"domain:", "ipv4:", "ipv6:"}
-	for _, prefix := range prefixes {
-		if strings.HasPrefix(hostArg, prefix) {
-			return strings.TrimPrefix(hostArg, prefix)
-		}
-	}
-	return hostArg
-}
-
-func handleConnection(incoming net.Conn, host string, port string) {
-	defer incoming.Close()
-
-	address := net.JoinHostPort(host, port)
-	outgoing, err := net.Dial("tcp", address)
-	if err != nil {
-		fmt.Println("Error connecting to", address, ":", err)
-		return
-	}
-	defer outgoing.Close()
-
-	done := make(chan bool, 2)
-
-	go copyData(outgoing, incoming, done)
-	go copyData(incoming, outgoing, done)
-
-	<-done
-	<-done
-}
-
-func copyData(destination net.Conn, source net.Conn, done chan bool) {
-	io.Copy(destination, source)
-	done <- true
 }

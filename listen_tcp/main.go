@@ -9,13 +9,13 @@ import (
 )
 
 func main() {
-	ip := flag.String("ip", "any", "version of IP protocol to use")
+	ipv := flag.String("ipv", "any", "version of IP protocol to use")
 	flag.Parse()
 
 	positionals := flag.Args()
 
 	if len(positionals) < 2 {
-		log.Fatalln("Usage: listen-tcp <host> <port>")
+		log.Fatalln("Usage: ./listen_tcp <host> <port>")
 	}
 
 	host := positionals[0]
@@ -28,11 +28,11 @@ func main() {
 
 	network, ok := map[string]string {
 		"any": "tcp",
-		"v4": "tcp4",
-		"v6": "tcp6",
-	}[*ip];
+		"4": "tcp4",
+		"6": "tcp6",
+	}[*ipv];
 	if !ok {
-		log.Fatalln("Incorrect IP version: expected \"v4\", \"v6\" or \"any\", got", *ip)
+		log.Fatalln("Incorrect IP version: expected \"4\", \"6\" or \"any\", got", *ipv)
 	}
 
 	listener, err := net.Listen(network, net.JoinHostPort(host, port))
